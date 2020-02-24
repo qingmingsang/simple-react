@@ -1,0 +1,26 @@
+{
+  "name": "simple-react",
+  "version": "1.0.0",
+  "description": "`const title = <h1 className=\"title\">Hello, world!</h1>;` 这段代码并不是合法的js代码，它是一种被称为jsx的语法扩展，通过它我们就可以很方便的在js代码中书写html片段。 本质上，jsx是语法糖，上面这段代码会被babel转换成如下代码 ``` const title = React.createElement(     'h1',     { className: 'title' },     'Hello, world!' ); ```",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "babel src -d dist --copy-files"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qingmingsang/simple-react.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/qingmingsang/simple-react/issues"
+  },
+  "homepage": "https://github.com/qingmingsang/simple-react#readme",
+  "devDependencies": {
+    "@babel/cli": "^7.8.4",
+    "@babel/core": "^7.8.4",
+    "@babel/preset-react": "^7.8.3"
+  }
+}
