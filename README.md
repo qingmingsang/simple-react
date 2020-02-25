@@ -1,4 +1,5 @@
-# jsx
+# JSX和虚拟DOM
+## jsx
 `const title = <h1 className="title">Hello, world!</h1>;`
 这段代码并不是合法的js代码，它是一种被称为jsx的语法扩展，通过它我们就可以很方便的在js代码中书写html片段。
 本质上，jsx是语法糖，上面这段代码会被babel转换成如下代码
@@ -165,4 +166,162 @@ function tick() {
 setInterval( tick, 1000 );
 ```
 
+# 组件和生命周期
+## 组件
+React定义组件的方式可以分为两种：函数和类，函数定义可以看做是类定义的一种简单形式。
+
+## createElement的变化
+上面对React.createElement的实现暂时只用来渲染原生DOM元素，而对于组件，createElement得到的参数略有不同：
+如果JSX片段中的某个元素是组件，那么createElement的第一个参数tag将会是一个方法，而不是字符串。
+
+区分组件和原生DOM的工作，是babel插件帮我们做的
+
+例如在处理`<Welcome name="Sara" />`时，createElement方法的第一个参数tag，实际上就是我们定义Welcome的方法：
+```
+function Welcome( props ) {
+    return <h1>Hello, {props.name}</h1>;
+}
+```
+不需要对createElement做修改，只需要知道如果渲染的是组件，tag的值将是一个函数
+
+## 组件基类React.Component
+通过类的方式定义组件，需要继承React.Component：
+```
+class Welcome extends React.Component {
+    render() {
+        return <h1>Hello, {this.props.name}</h1>;
+    }
+}
+```
+所以就需要先来实现React.Component这个类：
+## Component
+React.Component包含了一些预先定义好的变量和方法，我们来一步一步地实现它：
+先定义一个Component类：`class Component {}`
+
+### state & props
+通过继承React.Component定义的组件有自己的私有状态state，可以通过this.state获取到。同时也能通过this.props来获取传入的数据。
+所以在构造函数中，我们需要初始化state和props
+```
+// React.Component
+class Component {
+    constructor( props = {} ) {
+        this.state = {};
+        this.props = props;
+    }
+}
+```
+
+### setState
+组件内部的state和渲染结果相关，当state改变时通常会触发渲染，为了让React知道我们改变了state，我们只能通过setState方法去修改数据。我们可以通过Object.assign来做一个简单的实现。
+在每次更新state后，我们需要调用renderComponent方法来重新渲染组件，renderComponent方法的实现后下面会讲到。
+```
+import { renderComponent } from '../react-dom/render'
+class Component {
+    constructor( props = {} ) {
+        // ...
+    }
+
+    setState( stateChange ) {
+        // 将修改合并到state
+        Object.assign( this.state, stateChange );
+        renderComponent( this );
+    }
+}
+```
+你可能听说过React的setState是异步的，同时它有很多优化手段，这里我们暂时不去管它。
+
+## render
+需要在之前的render部分的代码里加一段用来渲染组件的代码：
+```
+function _render( vnode ) {
+
+    // ...
+
+    if ( typeof vnode.tag === 'function' ) {
+
+        const component = createComponent( vnode.tag, vnode.attrs );
+
+        setComponentProps( component, vnode.attrs );
+
+        return component.base;
+    }
+    
+    // ...
+}
+```
+
+## 组件渲染和生命周期
+在上面的方法中用到了createComponent和setComponentProps两个方法，组件的生命周期方法也会在这里面实现。
+
+生命周期方法是一些在特殊时机执行的函数，例如componentDidMount方法会在组件挂载后执行
+
+createComponent方法用来创建组件实例，并且将函数定义组件扩展为类定义组件进行处理，以免其他地方需要区分不同定义方式。
+
+```
+// 创建组件
+function createComponent( component, props ) {
+    let inst;
+    // 如果是类定义组件，则直接返回实例
+    if ( component.prototype && component.prototype.render ) {
+        inst = new component( props );
+    } else {
+        // 如果是函数定义组件，则将其扩展为类定义组件
+        inst = new Component( props );
+        inst.constructor = component;
+        inst.render = function() {
+            return this.constructor( props );
+        }
+    }
+
+    return inst;
+}
+```
+
+setComponentProps方法用来更新props，在其中可以实现componentWillMount，componentWillReceiveProps两个生命周期方法
+```
+// set props
+function setComponentProps( component, props ) {
+
+    if ( !component.base ) {
+        if ( component.componentWillMount ) component.componentWillMount();
+    } else if ( component.componentWillReceiveProps ) {
+        component.componentWillReceiveProps( props );
+    }
+
+    component.props = props;
+
+    renderComponent( component );
+
+}
+```
+
+renderComponent方法用来渲染组件，setState方法中会直接调用这个方法进行重新渲染，在这个方法里可以实现componentWillUpdate，componentDidUpdate，componentDidMount几个生命周期方法。
+```
+export function renderComponent( component ) {
+
+    let base;
+
+    const renderer = component.render();
+
+    if ( component.base && component.componentWillUpdate ) {
+        component.componentWillUpdate();
+    }
+
+    base = _render( renderer );
+
+    if ( component.base ) {
+        if ( component.componentDidUpdate ) component.componentDidUpdate();
+    } else if ( component.componentDidMount ) {
+        component.componentDidMount();
+    }
+
+    if ( component.base && component.base.parentNode ) {
+        component.base.parentNode.replaceChild( base, component.base );
+    }
+
+    component.base = base;
+    base._component = component;
+
+}
+```
 
