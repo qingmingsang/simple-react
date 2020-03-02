@@ -325,3 +325,55 @@ export function renderComponent( component ) {
 }
 ```
 
+# diff算法
+## 对比策略
+在前面实现了一个render方法，它能将虚拟DOM渲染成真正的DOM，现在就需要改进它，让它不要再傻乎乎地重新渲染整个DOM树，而是找出真正变化的部分。
+
+这部分很多类React框架实现方式都不太一样，有的框架会选择保存上次渲染的虚拟DOM，然后对比虚拟DOM前后的变化，得到一系列更新的数据，然后再将这些更新应用到真正的DOM上。
+
+但也有一些框架会选择直接对比虚拟DOM和真实DOM，这样就不需要额外保存上一次渲染的虚拟DOM，并且能够一边对比一边更新，这也是我们选择的方式。
+
+不管是DOM还是虚拟DOM，它们的结构都是一棵树，完全对比两棵树变化的算法时间复杂度是`O(n^3)`，但是考虑到我们很少会跨层级移动DOM，所以我们只需要对比同一层级的变化。
+
+在这里diff算法有两个原则：
+- 对比当前真实的DOM和虚拟DOM，在对比过程中直接更新真实DOM
+- 只对比同一层级的变化
+
+
+## 实现
+实现一个diff方法，它的作用是对比真实DOM和虚拟DOM，最后返回更新后的DOM
+```
+/**
+ * @param {HTMLElement} dom 真实DOM
+ * @param {vnode} vnode 虚拟DOM
+ * @returns {HTMLElement} 更新后的DOM
+ */
+function diff( dom, vnode ) {
+    // ...
+}
+```
+
+虚拟DOM的结构可以分为三种，分别表示文本、原生DOM节点以及组件。
+```
+// 原生DOM节点的vnode
+{
+    tag: 'div',
+    attrs: {
+        className: 'container'
+    },
+    children: []
+}
+
+// 文本节点的vnode
+"hello,world"
+
+// 组件的vnode
+{
+    tag: ComponentConstrucotr,
+    attrs: {
+        className: 'container'
+    },
+    children: []
+}
+```
+
