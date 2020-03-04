@@ -1,4 +1,4 @@
-import { Componet } from '../react'
+import { Component } from '../react'
 import { setAttribute } from './dom'
 
 /**
@@ -85,7 +85,6 @@ function diffChildren(dom, vchildren) {
             const child = domChildren[i];
             const key = child.key;
             if (key) {
-                keyedLen++;
                 keyed[key] = child;
             } else {
                 children.push(child);
@@ -115,7 +114,7 @@ function diffChildren(dom, vchildren) {
 
                 for (let j = min; j < childrenLen; j++) {
 
-                    let c = children[j];
+                    const c = children[j];
 
                     if (c && isSameNodeType(c, vchild)) {
 
@@ -209,9 +208,6 @@ export function renderComponent(component) {
 
     base = diffNode(component.base, renderer);
 
-    component.base = base;
-    base._component = component;
-
     if (component.base) {
         if (component.componentDidUpdate) component.componentDidUpdate();
     } else if (component.componentDidMount) {
@@ -228,6 +224,7 @@ function createComponent(component, props) {
     let inst;
 
     if (component.prototype && component.prototype.render) {
+        /* eslint-disable-next-line new-cap */
         inst = new component(props);
     } else {
         inst = new Component(props);
@@ -269,7 +266,7 @@ function diffAttributes(dom, vnode) {
     }
 
     // 如果原来的属性不在新的属性当中，则将其移除掉（属性值设为undefined）
-    for (let name in old) {
+    for (const name in old) {
 
         if (!(name in attrs)) {
             setAttribute(dom, name, undefined);
@@ -278,7 +275,7 @@ function diffAttributes(dom, vnode) {
     }
 
     // 更新新的属性值
-    for (let name in attrs) {
+    for (const name in attrs) {
 
         if (old[name] !== attrs[name]) {
             setAttribute(dom, name, attrs[name]);

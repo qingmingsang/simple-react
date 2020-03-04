@@ -606,6 +606,156 @@ function renderComponent( component ) {
 ```
 React实现远比这个要复杂，特别是在React 16之后还引入了Fiber架构，但是主要的思想是一致的。
 
+# 异步的setState
 实现diff算法可以说性能有了很大的提升，但是在别的地方仍然后很多改进的空间：每次调用setState后会立即调用renderComponent重新渲染组件，但现实情况是，我们可能会在极短的时间内多次调用setState。
 
+React的解决方案是：
+- 异步更新state，将短时间内的多个setState合并成一个
+- 为了解决异步更新导致的问题，增加另一种形式的setState：接受一个函数作为参数，在函数中可以得到前一个状态并返回下一个状态
 
+## 合并setState
+之前对setState的实现：
+```
+setState( stateChange ) {
+    Object.assign( this.state, stateChange );
+    renderComponent( this );
+}
+```
+这种实现，每次调用setState都会更新state并马上渲染一次。
+
+### setState队列
+为了合并setState，我们需要一个队列来保存每次setState的数据，然后在一段时间后，清空这个队列并渲染组件。
+
+队列是一种数据结构，它的特点是“先进先出”，可以通过js数组的push和shift方法模拟
+然后需要定义一个”入队“的方法，用来将更新添加进队列。
+```
+const queue = [];
+function enqueueSetState( stateChange, component ) {
+    queue.push( {
+        stateChange,
+        component
+    } );
+}
+然后修改组件的setState方法，不再直接更新state和渲染组件，而是添加进更新队列。
+
+setState( stateChange ) {
+    enqueueSetState( stateChange, this );
+}
+```
+
+### 清空队列
+定义一个flush方法，它的作用就是清空队列
+```
+function flush() {
+    let item;
+    // 遍历
+    while( item = setStateQueue.shift() ) {
+
+        const { stateChange, component } = item;
+
+        // 如果没有prevState，则将当前的state作为初始的prevState
+        if ( !component.prevState ) {
+            component.prevState = Object.assign( {}, component.state );
+        }
+
+        // 如果stateChange是一个方法，也就是setState的第二种形式
+        if ( typeof stateChange === 'function' ) {
+            Object.assign( component.state, stateChange( component.prevState, component.props ) );
+        } else {
+            // 如果stateChange是一个对象，则直接合并到setState中
+            Object.assign( component.state, stateChange );
+        }
+
+        component.prevState = component.state;
+
+    }
+}
+```
+这只是实现了state的更新，还没有渲染组件。渲染组件不能在遍历队列时进行，因为同一个组件可能会多次添加到队列中，需要另一个队列保存所有组件，不同之处是，这个队列内不会有重复的组件。
+
+在enqueueSetState时，就可以做这件事
+```
+const queue = [];
+const renderQueue = [];
+function enqueueSetState( stateChange, component ) {
+    queue.push( {
+        stateChange,
+        component
+    } );
+    // 如果renderQueue里没有当前组件，则添加到队列中
+    if ( !renderQueue.some( item => item === component ) ) {
+        renderQueue.push( component );
+    }
+}
+```
+在flush方法中，还需要遍历renderQueue，来渲染每一个组件
+```
+function flush() {
+    let item, component;
+    while( item = queue.shift() ) {
+        // ...
+    }
+    // 渲染每一个组件
+    while( component = renderQueue.shift() ) {
+        renderComponent( component );
+    }
+
+}
+```
+
+### 延迟执行
+现在还有一件最重要的事情：什么时候执行flush方法。
+需要合并一段时间内所有的setState，也就是在一段时间后才执行flush方法来清空队列，关键是这个“一段时间“怎么决定。
+
+一个比较好的做法是利用js的事件队列机制。
+
+先来看这样一段代码：
+```
+setTimeout( () => {
+    console.log( 2 );
+}, 0 );
+Promise.resolve().then( () => console.log( 1 ) );
+console.log( 3 );
+```
+可以打开浏览器的调试工具运行一下，它们打印的结果是：
+```
+3
+1
+2
+```
+
+利用事件队列(Event Loop)，让flush在所有同步任务后执行
+```
+function enqueueSetState( stateChange, component ) {
+    // 如果queue的长度是0，也就是在上次flush执行之后第一次往队列里添加
+    if ( queue.length === 0 ) {
+        defer( flush );
+    }
+    queue.push( {
+        stateChange,
+        component
+    } );
+    if ( !renderQueue.some( item => item === component ) ) {
+        renderQueue.push( component );
+    }
+}
+```
+定义defer方法
+```
+function defer( fn ) {
+    return Promise.resolve().then( fn );
+}
+```
+这样在一次“事件循环“中，最多只会执行一次flush了，在这个“事件循环”中，所有的setState都会被合并，并只渲染一次组件。
+
+### 别的延迟执行方法
+除了用`Promise.resolve().then( fn )`，也可以用上文中提到的`setTimeout( fn, 0 )`，setTimeout的时间也可以是别的值，例如16毫秒。
+
+16毫秒的间隔在一秒内大概可以执行60次，也就是60帧，人眼每秒只能捕获60幅画面
+
+另外也可以用requestAnimationFrame或者requestIdleCallback
+```
+function defer( fn ) {
+    return requestAnimationFrame( fn );
+}
+```

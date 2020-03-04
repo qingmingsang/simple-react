@@ -5,6 +5,7 @@ module.exports = {
     one: './src/one/index.js',
     two: './src/two/index.js',
     three: './src/three/index.js',
+    four: './src/four/index.js',
   },
   output: {
     filename: '[name].js',
