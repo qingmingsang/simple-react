@@ -1,3 +1,4 @@
+const webpack = require('webpack');
 const path = require('path');
 
 module.exports = {
@@ -6,6 +7,7 @@ module.exports = {
     two: './src/two/index.js',
     three: './src/three/index.js',
     four: './src/four/index.js',
+    T: './src/T/index.js',
   },
   output: {
     filename: '[name].js',
@@ -24,4 +26,11 @@ module.exports = {
     ]
   },
   resolve: { extensions: ['.js', '.jsx', '.tsx', '.ts'] },
+  plugins: [
+    new webpack.ProvidePlugin({
+      $: "jquery",
+      jQuery: "jquery",
+      "window.jQuery": "jquery"
+    })
+  ]
 };
